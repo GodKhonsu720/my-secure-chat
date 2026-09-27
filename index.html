@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Chat Room App</title>
+    <!-- Socket.io Library for Real-time chat -->
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; }
+        body { background: linear-gradient(135deg, #1e3c72, #2a5298); display: flex; justify-content: center; align-items: center; height: 100vh; color: #333; }
+        .container { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); width: 100%; max-width: 450px; text-align: center; }
+        .screen { display: none; }
+        .active { display: block; }
+        h2 { margin-bottom: 15px; color: #2c3e50; }
+        .btn { background: #2a5298; color: white; border: none; padding: 12px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; }
+        .btn:hover { background: #1e3c72; }
+        .form-group { margin-bottom: 12px; text-align: left; }
+        label { display: block; margin-bottom: 5px; font-size: 14px; font-weight: 600; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
+        .link-text { margin-top: 15px; font-size: 14px; color: #718096; }
+        .link-text a { color: #2a5298; text-decoration: none; font-weight: bold; }
+        
+        /* Chat Box */
+        #chat-box { height: 300px; border: 1px solid #ddd; border-radius: 6px; padding: 10px; overflow-y: auto; text-align: left; margin-bottom: 10px; background: #f9f9f9; }
+        .msg { margin-bottom: 10px; padding: 8px; border-radius: 6px; background: #e1ffb5; width: max-content; max-width: 80%; }
+        .msg.system { background: #eee; font-style: italic; color: #555; width: 100%; text-align: center; }
+        .msg b { color: #2a5298; display: block; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- SCREEN 1: GET STARTED -->
+        <div id="welcome-screen" class="screen active">
+            <h2>Secure Private Chat</h2>
+            <p style="color:#666; margin-bottom:20px;">Apne doston ke saath bina kisi privacy khatre ke chat karein.</p>
+            <button class="btn" onclick="showScreen('login-screen')">Get Started</button>
+        </div>
+
+        <!-- SCREEN 2: LOGIN -->
+        <div id="login-screen" class="screen">
+            <h2>Login</h2>
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group"><label>User ID</label><input type="text" id="login-uid" required placeholder="User ID"></div>
+                <div class="form-group"><label>Password</label><input type="password" required placeholder="Password"></div>
+                <button type="submit" class="btn">Login</button>
+            </form>
+            <p class="link-text">Account nahi hai? <a href="#" onclick="showScreen('signup-screen')">Create one</a></p>
+        </div>
+
+        <!-- SCREEN 3: SIGNUP (CREATE ONE) -->
+        <div id="signup-screen" class="screen">
+            <h2>Create Account</h2>
+            <form id="signup-form" onsubmit="handleSignup(event)">
+                <div class="form-group"><label>First Name</label><input type="text" required></div>
+                <div class="form-group"><label>Last Name</label><input type="text" required></div>
+                <div class="form-group"><label>Mobile Number</label><input type="tel" required></div>
+                <div class="form-group"><label>Date of Birth</label><input type="date" required onchange="calculateAge(this.value)"></div>
+                <div class="form-group"><label>Age</label><input type="number" id="signup-age" readonly placeholder="Auto-calculated"></div>
+                <div class="form-group">
+                    <label>Gender</label>
+                    <select required>
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Set User ID</label><input type="text" id="signup-uid" required></div>
+                <div class="form-group"><label>Set Password</label><input type="password" required></div>
+                <button type="submit" class="btn">Register & Go to Login</button>
+            </form>
+            <p class="link-text">Pehle se account hai? <a href="#" onclick="showScreen('login-screen')">Login</a></p>
+        </div>
+
+        <!-- SCREEN 4: ROOM CREATION -->
+        <div id="room-screen" class="screen">
+            <h2>Welcome, <span id="user-display">User</span>!</h2>
+            <div style="border: 1px solid #ddd; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                <h3>Create Private Room</h3>
+                <button class="btn" style="background:#27ae60;" onclick="createNewRoom()">Generate Room Code</button>
+            </div>
+            <div style="border: 1px solid #ddd; padding: 15px; border-radius: 6px;">
+                <h3>Join Existing Room</h3>
+                <div class="form-group"><input type="text" id="join-room-code" placeholder="Enter Room Code"></div>
+                <button class="btn" onclick="joinExistingRoom()">Join Room</button>
+            </div>
+        </div>
+
+        <!-- SCREEN 5: PRIVATE CHAT ROOM -->
+        <div id="chat-screen" class="screen">
+            <h2>Room: <span id="room-display" style="color:#27ae60;">XXXX</span></h2>
+            <p style="font-size:12px; color:#777; margin-bottom:10px;">Yeh code apne doston ko share karein.</p>
+            <div id="chat-box"></div>
+            <div style="display: flex; gap: 5px;">
+                <input type="text" id="msg-input" placeholder="Type a message...">
+                <button class="btn" style="width:80px; margin:0;" onclick="sendMessage()">Send</button>
+            </div>
+            <button class="btn" style="background:#c0392b;" onclick="location.reload()">Leave Room</button>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let currentUsername = "";
+        let currentRoomCode = "";
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function calculateAge(dobString) {
+            if(!dobString) return;
+            const dob = new Date(dobString);
+            const age = Math.abs(new Date(Date.now() - dob.getTime()).getUTCFullYear() - 1970);
+            document.getElementById('signup-age').value = age;
+        }
+
+        function handleSignup(e) {
+            e.preventDefault();
+            alert("Registration Successful! Ab login karein.");
+            showScreen('login-screen');
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            currentUsername = document.getElementById('login-uid').value;
+            document.getElementById('user-display').innerText = currentUsername;
+            showScreen('room-screen');
+        }
+
+        function createNewRoom() {
+            const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            startChat(randomCode);
+        }
+
+        function joinExistingRoom() {
+            const code = document.getElementById('join-room-code').value.trim().toUpperCase();
+            if(code) startChat(code);
+            else alert("Room code darj karein!");
+        }
+
+        function startChat(roomCode) {
+            currentRoomCode = roomCode;
+            document.getElementById('room-display').innerText = currentRoomCode;
+            showScreen('chat-screen');
+
+            socket = io();
+            socket.emit('joinRoom', { username: currentUsername, roomCode: currentRoomCode });
+
+            socket.on('message', (data) => {
+                const chatBox = document.getElementById('chat-box');
+                const msgElement = document.createElement('div');
+                if(data.username === 'System') {
+                    msgElement.className = 'msg system';
+                    msgElement.innerText = data.text;
+                } else {
+                    msgElement.className = 'msg';
+                    msgElement.innerHTML = `<b>${data.username}</b> ${data.text}`;
+                }
+                chatBox.appendChild(msgElement);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('msg-input');
+            const message = input.value.trim();
+            if(message && socket) {
+                socket.emit('chatMessage', message);
+                input.value = '';
+            }
+        }
+    </script>
+</body>
+</html>
