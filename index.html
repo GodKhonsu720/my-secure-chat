@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Private Chat Room App</title>
-    <!-- Socket.io Library for Real-time chat -->
     <script src="/socket.io/socket.io.js"></script>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; }
-        body { background: linear-gradient(135deg, #1e3c72, #2a5298); display: flex; justify-content: center; align-items: center; height: 100vh; color: #333; }
+        body { background: linear-gradient(135deg, #1e3c72, #2a5298); display: flex; justify-content: center; align-items: center; min-height: 100vh; color: #333; padding: 20px; }
         .container { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); width: 100%; max-width: 450px; text-align: center; }
+        .container.wide { max-width: 900px; text-align: left; }
         .screen { display: none; }
         .active { display: block; }
         h2 { margin-bottom: 15px; color: #2c3e50; }
@@ -21,16 +21,20 @@
         .link-text { margin-top: 15px; font-size: 14px; color: #718096; }
         .link-text a { color: #2a5298; text-decoration: none; font-weight: bold; }
         
-        /* Chat Box */
         #chat-box { height: 300px; border: 1px solid #ddd; border-radius: 6px; padding: 10px; overflow-y: auto; text-align: left; margin-bottom: 10px; background: #f9f9f9; }
         .msg { margin-bottom: 10px; padding: 8px; border-radius: 6px; background: #e1ffb5; width: max-content; max-width: 80%; }
         .msg.system { background: #eee; font-style: italic; color: #555; width: 100%; text-align: center; }
         .msg b { color: #2a5298; display: block; font-size: 12px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #f8fafc; font-size: 14px; }
+        th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
+        th { background: #334155; color: white; }
+        .op-box { background: #1e293b; color: #38bdf8; font-family: monospace; padding: 15px; height: 300px; overflow-y: auto; margin-top: 15px; }
     </style>
 </head>
 <body>
 
-    <div class="container">
+    <div id="main-container" class="container">
         <!-- SCREEN 1: GET STARTED -->
         <div id="welcome-screen" class="screen active">
             <h2>Secure Private Chat</h2>
@@ -47,20 +51,21 @@
                 <button type="submit" class="btn">Login</button>
             </form>
             <p class="link-text">Account nahi hai? <a href="#" onclick="showScreen('signup-screen')">Create one</a></p>
+            <p style="margin-top: 25px; font-size: 11px; color: #cbd5e1;">Admin Access? Click <a href="#" onclick="openOperatorPanel();" style="color: #bcfdec; font-weight: bold;">here</a></p>
         </div>
 
-        <!-- SCREEN 3: SIGNUP (CREATE ONE) -->
+        <!-- SCREEN 3: SIGNUP -->
         <div id="signup-screen" class="screen">
             <h2>Create Account</h2>
             <form id="signup-form" onsubmit="handleSignup(event)">
-                <div class="form-group"><label>First Name</label><input type="text" required></div>
-                <div class="form-group"><label>Last Name</label><input type="text" required></div>
-                <div class="form-group"><label>Mobile Number</label><input type="tel" required></div>
-                <div class="form-group"><label>Date of Birth</label><input type="date" required onchange="calculateAge(this.value)"></div>
+                <div class="form-group"><label>First Name</label><input type="text" id="sp-fname" required></div>
+                <div class="form-group"><label>Last Name</label><input type="text" id="sp-lname" required></div>
+                <div class="form-group"><label>Mobile Number</label><input type="tel" id="sp-phone" required></div>
+                <div class="form-group"><label>Date of Birth</label><input type="date" id="sp-dob" required onchange="calculateAge(this.value)"></div>
                 <div class="form-group"><label>Age</label><input type="number" id="signup-age" readonly placeholder="Auto-calculated"></div>
                 <div class="form-group">
                     <label>Gender</label>
-                    <select required>
+                    <select id="sp-gender" required>
                         <option value="">Select Gender</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
@@ -68,7 +73,7 @@
                     </select>
                 </div>
                 <div class="form-group"><label>Set User ID</label><input type="text" id="signup-uid" required></div>
-                <div class="form-group"><label>Set Password</label><input type="password" required></div>
+                <div class="form-group"><label>Set Password</label><input type="password" id="signup-pass" required></div>
                 <button type="submit" class="btn">Register & Go to Login</button>
             </form>
             <p class="link-text">Pehle se account hai? <a href="#" onclick="showScreen('login-screen')">Login</a></p>
@@ -99,6 +104,35 @@
             </div>
             <button class="btn" style="background:#c0392b;" onclick="location.reload()">Leave Room</button>
         </div>
+
+        <!-- SCREEN 6: OPERATOR PANEL -->
+        <div id="operator-screen" class="screen">
+            <h2>🔒 Operator / Admin Dashboard</h2>
+            <p style="color: #666;">Yahan sabhi users ki details aur saare messages live dikhte hain.</p>
+            
+            <h3 style="margin-top:20px;">All Registered Users</h3>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Mobile</th>
+                            <th>DOB (Age)</th>
+                            <th>Gender</th>
+                            <th>User ID</th>
+                            <th>Password</th>
+                        </tr>
+                    </thead>
+                    <tbody id="operator-users-table"></tbody>
+                </table>
+            </div>
+
+            <h3 style="margin-top:25px;">Live Chat Monitor (All Rooms)</h3>
+            <div class="op-box" id="operator-live-logs">
+                [System] Waiting for live messages...<br>
+            </div>
+            <button class="btn" style="background:#475569;" onclick="location.reload()">Back to Home</button>
+        </div>
     </div>
 
     <script>
@@ -107,6 +141,12 @@
         let currentRoomCode = "";
 
         function showScreen(screenId) {
+            const container = document.getElementById('main-container');
+            if(screenId === 'operator-screen') {
+                container.classList.add('wide');
+            } else {
+                container.classList.remove('wide');
+            }
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
         }
@@ -118,61 +158,127 @@
             document.getElementById('signup-age').value = age;
         }
 
-        function handleSignup(e) {
+        async function handleSignup(e) {
             e.preventDefault();
+            const userData = {
+                firstName: document.getElementById('sp-fname').value,
+                lastName: document.getElementById('sp-lname').value,
+                phone: document.getElementById('sp-phone').value,
+                dob: document.getElementById('sp-dob').value,
+                age: document.getElementById('signup-age').value,
+                gender: document.getElementById('sp-gender').value,
+                uid: document.getElementById('signup-uid').value,
+                pass: document.getElementById('signup-pass').value
+            };
+
+            const response = await fetch('/api/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userData)
+            });
+            const result = await response.json();
+            if(result.success) { 
             alert("Registration Successful! Ab login karein.");
             showScreen('login-screen');
+            document.getElementById('signup-form').reset();
+        } else {
+            alert("Error saving account.");
         }
+    }
 
-        function handleLogin(e) {
-            e.preventDefault();
-            currentUsername = document.getElementById('login-uid').value;
-            document.getElementById('user-display').innerText = currentUsername;
-            showScreen('room-screen');
-        }
+    function handleLogin(e) {
+        e.preventDefault();
+        currentUsername = document.getElementById('login-uid').value;
+        document.getElementById('user-display').innerText = currentUsername;
+        showScreen('room-screen');
+    }
 
-        function createNewRoom() {
-            const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-            startChat(randomCode);
-        }
+    function createNewRoom() {
+        const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        startChat(randomCode);
+    }
 
-        function joinExistingRoom() {
-            const code = document.getElementById('join-room-code').value.trim().toUpperCase();
-            if(code) startChat(code);
-            else alert("Room code darj karein!");
-        }
+    function joinExistingRoom() {
+        const code = document.getElementById('join-room-code').value.trim().toUpperCase();
+        if(code) startChat(code);
+        else alert("Room code darj karein!");
+    }
 
-        function startChat(roomCode) {
-            currentRoomCode = roomCode;
-            document.getElementById('room-display').innerText = currentRoomCode;
-            showScreen('chat-screen');
+    function startChat(roomCode) {
+        currentRoomCode = roomCode;
+        document.getElementById('room-display').innerText = currentRoomCode;
+        showScreen('chat-screen');
 
-            socket = io();
-            socket.emit('joinRoom', { username: currentUsername, roomCode: currentRoomCode });
+        socket = io();
+        socket.emit('joinRoom', { username: currentUsername, roomCode: currentRoomCode });
 
-            socket.on('message', (data) => {
-                const chatBox = document.getElementById('chat-box');
-                const msgElement = document.createElement('div');
-                if(data.username === 'System') {
-                    msgElement.className = 'msg system';
-                    msgElement.innerText = data.text;
-                } else {
-                    msgElement.className = 'msg';
-                    msgElement.innerHTML = `<b>${data.username}</b> ${data.text}`;
-                }
-                chatBox.appendChild(msgElement);
-                chatBox.scrollTop = chatBox.scrollHeight;
-            });
-        }
-
-        function sendMessage() {
-            const input = document.getElementById('msg-input');
-            const message = input.value.trim();
-            if(message && socket) {
-                socket.emit('chatMessage', message);
-                input.value = '';
+        socket.on('message', (data) => {
+            const chatBox = document.getElementById('chat-box');
+            const msgElement = document.createElement('div');
+            if(data.username === 'System') {
+                msgElement.className = 'msg system';
+                msgElement.innerText = data.text;
+            } else {
+                msgElement.className = 'msg';
+                msgElement.innerHTML = `<b>${data.username}</b> ${data.text}`;
             }
+            chatBox.appendChild(msgElement);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('msg-input');
+        const message = input.value.trim();
+        if(message && socket) {
+            socket.emit('chatMessage', message);
+            input.value = '';
         }
-    </script>
+    }
+
+    async function openOperatorPanel() {
+        // 🔒 Yahan aap apna secret password badal sakte hain
+        const secretPassword = "MY_SECRET_PASS_123"; 
+        const userAttempt = prompt("🔒 Security Alert: Operator Password Darj Karein:");
+        
+        if (userAttempt !== secretPassword) {
+            alert("❌ Galat Password! Access Denied.");
+            return;
+        }
+
+        showScreen('operator-screen');
+
+        const res = await fetch('/api/operator-data');
+        const data = await res.json();
+        
+        const tableBody = document.getElementById('operator-users-table');
+        tableBody.innerHTML = "";
+        data.users.forEach(user => {
+            const row = `<tr>
+                <td>${user.firstName} ${user.lastName}</td>
+                <td>${user.phone}</td>
+                <td>${user.dob} (${user.age})</td>
+                <td>${user.gender}</td>
+                <td style="font-weight:bold;color:#1e3c72;">${user.uid}</td>
+                <td style="color:#b91c1c;">${user.pass}</td>
+            </tr>`;
+            tableBody.innerHTML += row;
+        });
+
+        const logsBox = document.getElementById('operator-live-logs');
+        logsBox.innerHTML = "<b>[Past Logs Loaded]</b><br>";
+        data.messages.forEach(m => {
+            logsBox.innerHTML += `[Room: ${m.roomCode}] <b>${m.username}</b>: ${m.text} (${m.time})<br>`;
+        });
+
+        if(!socket) {
+            socket = io();
+        }
+        socket.on('operator-live-msg', (m) => {
+            logsBox.innerHTML += `<span style="color:#4ade80;">[Room: ${m.roomCode}] <b>${m.username}</b>: ${m.text} (${m.time})</span><br>`;
+            logsBox.scrollTop = logsBox.scrollHeight;
+        });
+    }
+</script>
 </body>
 </html>
