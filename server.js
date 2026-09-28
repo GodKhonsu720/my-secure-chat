@@ -2,45 +2,91 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Static files ko directly serve karne ke liye configuration
+app.use(express.json());
 app.use(express.static(__dirname));
 
-// Default route par index.html bhejenge
+// Data files paths
+const USERS_FILE = path.join(__dirname, 'users.json');
+const MSGS_FILE = path.join(__dirname, 'messages.json');
+
+// Files initialize karne ke liye helper function
+function initFile(filePath) {
+    if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, JSON.stringify([]));
+    }
+}
+initFile(USERS_FILE);
+initFile(MSGS_FILE);
+
+// Default Route
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Real-time Chat logic using WebSockets (Socket.io)
-io.on('connection', (socket) => {
-    console.log('Ek naya user connect hua hai:', socket.id);
+// SIGNUP API - Data Save karne ke liye
+app.post('/api/signup', (req, res) => {
+    try {
+        const users = JSON.parse(fs.readFileSync(USERS_FILE));
+        users.push(req.body);
+        fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
 
-    // Jab koi user private room join karta hai
+// OPERATOR PANEL DATA API
+app.get('/api/operator-data', (req, res) => {
+    try {
+        const users = JSON.parse(fs.readFileSync(USERS_FILE));
+        const messages = JSON.parse(fs.readFileSync(MSGS_FILE));
+        res.json({ users, messages });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Real-time Chat logic using Socket.io
+io.on('connection', (socket) => {
     socket.on('joinRoom', ({ username, roomCode }) => {
         socket.join(roomCode);
         socket.username = username;
         socket.roomCode = roomCode;
 
-        // Room ke baaki logo ko update bhejna
-        socket.to(roomCode).emit('message', {
+        io.to(roomCode).emit('message', {
             username: 'System',
             text: `${username} ne room join kar liya hai!`
         });
     });
 
-    // Jab koi message bhejta hai (sirf usi private room ke logo tak jayega)
     socket.on('chatMessage', (msg) => {
-        io.to(socket.roomCode).emit('message', {
+        const msgData = {
+            roomCode: socket.roomCode,
             username: socket.username,
-            text: msg
-        });
+            text: msg,
+            time: new Date().toLocaleTimeString()
+        };
+
+        // Message ko hamesha ke liye messages.json file mein save karein
+        try {
+            const messages = JSON.parse(fs.readFileSync(MSGS_FILE));
+            messages.push(msgData);
+            fs.writeFileSync(MSGS_FILE, JSON.stringify(messages, null, 2));
+        } catch (e) { console.log(e); }
+
+        // Room ke logo ko message bhejein
+        io.to(socket.roomCode).emit('message', msgData);
+        
+        // Operator Panel ko live update bhejein
+        io.emit('operator-live-msg', msgData);
     });
 
-    // User ke leave ya disconnect hone par
     socket.on('disconnect', () => {
         if (socket.roomCode) {
             io.to(socket.roomCode).emit('message', {
@@ -51,7 +97,7 @@ io.on('connection', (socket) => {
     });
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Aapka Secure Chat Server chal raha hai: http://localhost:${PORT}`);
+    console.log(`Server chal raha hai: http://localhost:${PORT}`);
 });
