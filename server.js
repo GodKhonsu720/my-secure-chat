@@ -70,7 +70,7 @@ io.on('connection', (socket) => {
             roomCode: socket.roomCode,
             username: socket.username,
             text: msg,
-            time: new Date().toLocaleTimeString('en-In', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit, hour12: true})
+            time: new Date().toLocaleTimeString('en-In', { timeZone: 'Asia/Kolkata'})
         };
 
         // Message ko hamesha ke liye messages.json file mein save karein
