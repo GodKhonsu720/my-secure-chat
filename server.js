@@ -40,7 +40,21 @@ app.post('/api/signup', (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
-
+// LOGIN API - ID aur Password check karne ke liye
+app.post('/api/login', (req, res) => {
+  try {
+    const { uid, pass } = req.body;
+    const users = JSON.parse(fs.readFileSync(USERS_FILE));
+    const validUser = users.find(u => u.uid === uid && u.pass === pass);
+    if (validUser) {
+      res.json({ success: true });
+    } else {
+      res.json({ success: false });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false });
+  }
+});
 // OPERATOR PANEL DATA API
 app.get('/api/operator-data', (req, res) => {
     try {
