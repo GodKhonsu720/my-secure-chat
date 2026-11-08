@@ -47,7 +47,7 @@
             <h2>Login</h2>
             <form id="login-form" onsubmit="handleLogin(event)">
                 <div class="form-group"><label>User ID</label><input type="text" id="login-uid" required placeholder="User ID"></div>
-                <div class="form-group"><label>Password</label><input type="password" required placeholder="Password"></div>
+                <div class="form-group"><label>Password</label><input type="password" id="login-pass" required placeholder="Password"></div>
                 <button type="submit" class="btn">Login</button>
             </form>
             <p class="link-text">Account nahi hai? <a href="#" onclick="showScreen('signup-screen')">Create one</a></p>
@@ -186,12 +186,26 @@
         }
     }
 
-    function handleLogin(e) {
-        e.preventDefault();
-        currentUsername = document.getElementById('login-uid').value;
-        document.getElementById('user-display').innerText = currentUsername;
-        showScreen('room-screen');
-    }
+   async function handleLogin(e) {
+  e.preventDefault();
+  const uid = document.getElementById('login-uid').value;
+  const pass = document.getElementById('login-pass').value;
+
+  const response = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid, pass })
+  });
+
+  const result = await response.json();
+  if (result.success) {
+    currentUsername = uid;
+    document.getElementById('user-display').innerText = currentUsername;
+    showScreen('room-screen');
+  } else {
+    alert("Galat User ID ya Password! Pehle account banayein.");
+  }
+}
 
     function createNewRoom() {
         const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
